@@ -25,6 +25,17 @@ class PenetrationTestingApp:
         self.output_text = tk.Text(master, height=10, width=50)
         self.output_text.grid(row=3, columnspan=2)
 
+        self.brute_force_button = tk.Button(master, text="Brute Force Login", command=self.brute_force_login)
+        self.brute_force_button.grid(row=4, columnspan=2)
+
+        self.command_label = tk.Label(master, text="Command to Execute:")
+        self.command_label.grid(row=5, column=0)
+        self.command_entry = tk.Entry(master)
+        self.command_entry.grid(row=5, column=1)
+
+        self.execute_button = tk.Button(master, text="Execute Command", command=self.execute_command)
+        self.execute_button.grid(row=6, columnspan=2)
+
     def scan_ports(self):
         target = self.target_entry.get()
         port_range = self.port_entry.get().split("-")
@@ -45,6 +56,57 @@ class PenetrationTestingApp:
                 open_ports.append(port)
             sock.close()
         return open_ports
+
+    def brute_force_login(self):
+        target = self.target_entry.get()
+        port = int(input("Enter the port to brute force: "))
+        usernames = input("Enter usernames (separated by comma): ").split(',')
+        passwords = input("Enter passwords (separated by comma): ").split(',')
+        self.output_text.delete(1.0, tk.END)
+        if self._brute_force_login(target, port, usernames, passwords):
+            self.output_text.insert(tk.END, "Brute force successful!")
+        else:
+            self.output_text.insert(tk.END, "Brute force failed.")
+
+    def _brute_force_login(self, target, port, usernames, passwords):
+        for username in usernames:
+            for password in passwords:
+                try:
+                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                    sock.connect((target, port))
+                    banner = self._get_banner(sock)
+                    sock.sendall("{}:{}\n".format(username, password).encode())
+                    response = sock.recv(1024).decode().strip()
+                    if "Login successful" in response:
+                        return True
+                    sock.close()
+                except:
+                    pass
+        return False
+
+    def _get_banner(self, sock):
+        try:
+            return sock.recv(1024).decode().strip()
+        except Exception as e:
+            return str(e)
+
+    def execute_command(self):
+        target = self.target_entry.get()
+        port = int(input("Enter the port to execute command on: "))
+        command = self.command_entry.get()
+        self.output_text.delete(1.0, tk.END)
+        self._execute_command(target, port, command)
+
+    def _execute_command(self, target, port, command):
+        try:
+            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+            sock.connect((target, port))
+            sock.send(command.encode())
+            response = sock.recv(4096).decode()
+            self.output_text.insert(tk.END, response)
+            sock.close()
+        except Exception as e:
+            self.output_text.insert(tk.END, "Error: " + str(e))
 
 def main():
     root = tk.Tk()
