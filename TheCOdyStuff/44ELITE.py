@@ -3,6 +3,8 @@ import subprocess
 import os
 import threading
 import tkinter as tk
+from tkinter import messagebox
+import logging
 
 class PenetrationTestingApp:
     def __init__(self, master):
@@ -36,77 +38,79 @@ class PenetrationTestingApp:
         self.execute_button = tk.Button(master, text="Execute Command", command=self.execute_command)
         self.execute_button.grid(row=6, columnspan=2)
 
+        # Initialize logger
+        logging.basicConfig(filename='44ELITE.log', level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
+
     def scan_ports(self):
         target = self.target_entry.get()
         port_range = self.port_entry.get().split("-")
         start_port = int(port_range[0])
         end_port = int(port_range[1])
 
-        open_ports = self._scan_ports(target, start_port, end_port)
-        self.output_text.delete(1.0, tk.END)
-        self.output_text.insert(tk.END, "Open ports: " + str(open_ports))
+        try:
+            open_ports = self._scan_ports(target, start_port, end_port)
+            self.output_text.delete(1.0, tk.END)
+            self.output_text.insert(tk.END, "Open ports: " + str(open_ports))
+            logging.info("Port scanning completed. Open ports: " + str(open_ports))
+        except Exception as e:
+            messagebox.showerror("Error", "An error occurred during port scanning: " + str(e))
+            logging.error("Error during port scanning: " + str(e))
 
     def _scan_ports(self, target, start_port, end_port):
         open_ports = []
         for port in range(start_port, end_port+1):
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            sock.settimeout(1)
-            result = sock.connect_ex((target, port))
-            if result == 0:
-                open_ports.append(port)
-            sock.close()
+            with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
+                sock.settimeout(1)
+                result = sock.connect_ex((target, port))
+                if result == 0:
+                    open_ports.append(port)
         return open_ports
 
     def brute_force_login(self):
         target = self.target_entry.get()
-        port = int(input("Enter the port to brute force: "))
-        usernames = input("Enter usernames (separated by comma): ").split(',')
-        passwords = input("Enter passwords (separated by comma): ").split(',')
-        self.output_text.delete(1.0, tk.END)
-        if self._brute_force_login(target, port, usernames, passwords):
-            self.output_text.insert(tk.END, "Brute force successful!")
-        else:
-            self.output_text.insert(tk.END, "Brute force failed.")
+        port = 22  # Example port for SSH
+        usernames = ['root', 'admin']
+        passwords = ['password', '123456']
+        try:
+            if self._brute_force_login(target, port, usernames, passwords):
+                messagebox.showinfo("Success", "Brute force successful!")
+                logging.info("Brute force login successful.")
+            else:
+                messagebox.showerror("Error", "Brute force failed.")
+                logging.error("Brute force login failed.")
+        except Exception as e:
+            messagebox.showerror("Error", "An error occurred during brute force login: " + str(e))
+            logging.error("Error during brute force login: " + str(e))
 
     def _brute_force_login(self, target, port, usernames, passwords):
         for username in usernames:
             for password in passwords:
-                try:
-                    sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+                with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
                     sock.connect((target, port))
-                    banner = self._get_banner(sock)
                     sock.sendall("{}:{}\n".format(username, password).encode())
                     response = sock.recv(1024).decode().strip()
                     if "Login successful" in response:
                         return True
-                    sock.close()
-                except:
-                    pass
         return False
-
-    def _get_banner(self, sock):
-        try:
-            return sock.recv(1024).decode().strip()
-        except Exception as e:
-            return str(e)
 
     def execute_command(self):
         target = self.target_entry.get()
-        port = int(input("Enter the port to execute command on: "))
+        port = 22  # Example port for SSH
         command = self.command_entry.get()
-        self.output_text.delete(1.0, tk.END)
-        self._execute_command(target, port, command)
+        try:
+            response = self._execute_command(target, port, command)
+            self.output_text.delete(1.0, tk.END)
+            self.output_text.insert(tk.END, response)
+        except Exception as e:
+            messagebox.showerror("Error", "An error occurred during command execution: " + str(e))
+            logging.error("Error during command execution: " + str(e))
 
     def _execute_command(self, target, port, command):
-        try:
-            sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as sock:
             sock.connect((target, port))
             sock.send(command.encode())
             response = sock.recv(4096).decode()
-            self.output_text.insert(tk.END, response)
-            sock.close()
-        except Exception as e:
-            self.output_text.insert(tk.END, "Error: " + str(e))
+        return response
 
 def main():
     root = tk.Tk()
